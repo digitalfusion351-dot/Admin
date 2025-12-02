@@ -1,0 +1,829 @@
+// ID ของ Google Sheet ที่คุณสร้างในขั้นตอนที่ 1
+const SPREADSHEET_ID = "1Ti5WryhQ4pxGi7PXZeJgI6Lg2tKPUJRiX9doqpEALPw"; // <--- ใส่ ID ของ Sheet ที่นี่
+
+// (*** สำคัญ: ใส่ ID ของ Google Drive Folder ที่คุณแชร์ ***)
+// (*** โปรดสร้าง Folder, แชร์เป็น "ทุกคนที่มีลิงก์", แล้วนำ ID มาใส่ที่นี่ ***)
+const IMAGE_UPLOAD_FOLDER_ID = "11Qb4Q52Nhl-HEbwUDFMSx4pKGdY4PSEs"; // <--- !!!!!! อัปเดตตรงนี้ !!!!!!
+
+// ชื่อ Sheet (ตรวจสอบให้ตรงกับที่คุณตั้ง)
+const STAFF_SHEET = "Staff";
+const EQUIPMENT_SHEET = "Equipment";
+const MEMBERS_SHEET = "Members";
+const TRANSACTIONS_SHEET = "Transactions";
+
+
+const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+const staffSheet = ss.getSheetByName(STAFF_SHEET);
+const equipmentSheet = ss.getSheetByName(EQUIPMENT_SHEET);
+const membersSheet = ss.getSheetByName(MEMBERS_SHEET);
+const transactionsSheet = ss.getSheetByName(TRANSACTIONS_SHEET);
+
+
+const TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+
+function doGet(e) {
+  let html = HtmlService.createTemplateFromFile("Index").evaluate();
+  html.setTitle("Radio Equipment Borrow & Return System");
+  html.addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  return html;
+}
+
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+
+function checkLogin(credentials) {
+  try {
+    const data = staffSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] == credentials.userId && data[i][1] == credentials.password) {
+        return {
+          status: "success",
+          user: {
+            userId: data[i][0],
+            fullName: data[i][2],
+            role: data[i][3],
+            profilePic: data[i][4],
+            phone: data[i][5],
+            email: data[i][6],
+          }
+        };
+      }
+    }
+    return { status: "error", message: "UserID หรือ Password ไม่ถูกต้อง" };
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function getDashboardDynamicData() {
+  try {
+    const stats = getDashboardStats();
+    const recent = getRecentTransactions(5);
+    const overdue = getDynamicListData('overdue');
+    const chartData = getMonthlyChartData(); 
+    const categoryData = getCategoryChartData();
+    
+    return {
+      stats: stats,
+      recent: recent,
+      overdue: overdue,
+      chartData: chartData,
+      categoryData: categoryData 
+    };
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function getCategoryChartData() {
+  try {
+    const data = equipmentSheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    
+    const categoryColIndex = headers.indexOf("Category");
+
+    if (categoryColIndex === -1) {
+      Logger.log("ไม่พบคอลัมน์ 'Category' ในชีต Equipment");
+      
+      return { labels: ["- (ไม่พบคอลัมน์ Category) -"], data: [1] };
+    }
+
+    const categories = {};
+    
+    for (let i = 1; i < data.length; i++) {
+      let category = data[i][categoryColIndex];
+      if (!category) category = "Other"; 
+      
+      if (categories[category]) {
+        categories[category]++;
+      } else {
+        categories[category] = 1;
+      }
+    }
+
+    
+    const labels = Object.keys(categories);
+    const chartData = Object.values(categories);
+
+    return {
+      labels: labels,
+      data: chartData
+    };
+  } catch (e) {
+     Logger.log(e);
+     return { labels: ["Error"], data: [1] };
+  }
+}
+
+
+
+function getMonthlyChartData() {
+  const labels = [];
+  const borrowData = [0, 0, 0, 0, 0, 0];
+  const returnData = [0, 0, 0, 0, 0, 0];
+  
+  const today = new Date();
+  today.setDate(1); 
+  
+  let monthKeys = []; 
+
+  
+  for (let i = 5; i >= 0; i--) {
+    const targetMonth = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const month = targetMonth.getMonth();
+    const year = targetMonth.getFullYear();
+    
+    labels.push(TH_MONTHS[month]); 
+    monthKeys.push(`${year}-${month}`); 
+  }
+  
+  
+  const transactions = transactionsSheet.getDataRange().getValues().slice(1);
+  const firstMonthStartDate = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+  
+  transactions.forEach(row => {
+    const borrowDate = new Date(row[1]); 
+    const returnDate = row[2] ? new Date(row[2]) : null; 
+    
+    
+    if (borrowDate >= firstMonthStartDate) {
+      const borrowKey = `${borrowDate.getFullYear()}-${borrowDate.getMonth()}`;
+      const index = monthKeys.indexOf(borrowKey);
+      if (index > -1) {
+        borrowData[index]++;
+      }
+    }
+    
+    
+    if (returnDate && returnDate >= firstMonthStartDate) {
+      const returnKey = `${returnDate.getFullYear()}-${returnDate.getMonth()}`;
+      const index = monthKeys.indexOf(returnKey);
+      if (index > -1) {
+        returnData[index]++;
+      }
+    }
+  });
+
+  return {
+    labels: labels,
+    borrowData: borrowData,
+    returnData: returnData
+  };
+}
+
+
+
+function getDashboardStats() {
+  const equipmentData = equipmentSheet.getRange(2, 5, equipmentSheet.getLastRow() - 1, 1).getValues();
+  let total = equipmentData.length;
+  let borrowed = 0;
+  let available = 0;
+  let notAvailable = 0;
+
+  equipmentData.forEach(row => {
+    if (row[0] == "ยืม") borrowed++;
+    else if (row[0] == "คืน") available++;
+    else if (row[0] == "ไม่พร้อมใช้งาน") notAvailable++;
+  });
+
+  const transactionsData = transactionsSheet.getDataRange().getValues();
+  let overdue = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); 
+  
+  for (let i = 1; i < transactionsData.length; i++) {
+    const status = transactionsData[i][8];          // I = Status
+    const expectedReturnDate = new Date(transactionsData[i][3]); // D
+    if (status == "Borrowed" && expectedReturnDate < today) {
+      overdue++;
+    }
+  }
+
+
+  return {
+    total: total,
+    borrowed: borrowed,
+    available: available, 
+    notAvailable: notAvailable,
+    overdue: overdue
+  };
+}
+
+
+function getRecentTransactions(limit) {
+  const transactions = sheetToObjects(transactionsSheet.getDataRange().getValues());
+  const equipment = sheetToObjects(equipmentSheet.getDataRange().getValues());
+  const members = sheetToObjects(membersSheet.getDataRange().getValues());
+
+  transactions.sort((a, b) => new Date(b.TimestampBorrow) - new Date(a.TimestampBorrow));
+
+  const recent = transactions.slice(0, limit);
+  const results = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const t of recent) {
+    const eq = equipment.find(e => e.EquipmentBarcode == t.EquipmentBarcode);
+    const mem = members.find(m => m.EmployeeID == t.EmployeeID);
+    
+    let statusText = "คืนแล้ว";
+    let isOverdue = false;
+    
+    if (t.Status === "Borrowed") {
+      const expectedReturnDate = new Date(t.ExpectedReturnDate);
+      if (expectedReturnDate < today) {
+        statusText = "เกินกำหนด";
+        isOverdue = true;
+      } else {
+        statusText = "กำลังยืม";
+      }
+    }
+    
+    results.push({
+      memberName: mem ? mem.FullName : t.EmployeeID,
+      memberInitials: mem ? (mem.FullName[0] || '').toUpperCase() : '?',
+      equipmentName: eq ? eq.EquipmentName : t.EquipmentBarcode,
+      department: mem ? mem.Department : 'N/A',
+      status: statusText,
+      isOverdue: isOverdue
+    });
+  }
+  return results;
+}
+
+
+
+function getDynamicListData(listType) {
+  const equipment = sheetToObjects(equipmentSheet.getDataRange().getValues());
+  const members = sheetToObjects(membersSheet.getDataRange().getValues());
+  const transactions = sheetToObjects(transactionsSheet.getDataRange().getValues());
+  
+  let results = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); 
+
+  if (listType === 'borrowed' || listType === 'overdue') {
+    const relevantTransactions = transactions.filter(t => t.Status === 'Borrowed');
+    
+    for (const t of relevantTransactions) {
+      const expectedReturnDate = new Date(t.ExpectedReturnDate);
+      const isOverdue = expectedReturnDate < today;
+      
+      if (listType === 'overdue' && !isOverdue) continue;
+      
+      const eq = equipment.find(e => e.EquipmentBarcode == t.EquipmentBarcode);
+      const mem = members.find(m => m.EmployeeID == t.EmployeeID);
+      
+      let daysOverdue = 0;
+      if (isOverdue) {
+        const diffTime = Math.abs(today - expectedReturnDate);
+        daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      results.push({
+        col1_header: "อุปกรณ์",
+        col2_header: "ผู้ยืม",
+        col3_header: "กำหนดคืน",
+        col1_value: eq ? eq.EquipmentName : t.EquipmentBarcode,
+        col2_value: mem ? mem.FullName : t.EmployeeID,
+        col3_value: expectedReturnDate.toLocaleDateString('th-TH'), 
+        isOverdue: isOverdue,
+        daysOverdue: daysOverdue 
+      });
+    }
+    results.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+  } else if (listType === 'notAvailable') {
+    const relevantEquipment = equipment.filter(e => e.Status === 'ไม่พร้อมใช้งาน');
+    for (const eq of relevantEquipment) {
+      results.push({
+        col1_header: "อุปกรณ์",
+        col2_header: "Barcode",
+        col3_header: "รายละเอียด",
+        col1_value: eq.EquipmentName,
+        col2_value: eq.EquipmentBarcode,
+        col3_value: eq.EquipmentDetails || '-',
+        isOverdue: false 
+      });
+    }
+  }
+  return results;
+}
+
+
+
+function getEquipmentList() {
+  const data = equipmentSheet.getDataRange().getValues();
+  return sheetToObjects(data);
+}
+
+
+function getMemberList() {
+  const data = membersSheet.getDataRange().getValues();
+  return sheetToObjects(data);
+}
+
+
+function getMemberDetails(employeeId) {
+  try {
+    const memberData = membersSheet.getDataRange().getValues();
+    const headers = memberData[0];
+    let member = null;
+    
+    for (let i = 1; i < memberData.length; i++) {
+      if (memberData[i][0] == employeeId) {
+        member = {};
+        headers.forEach((header, j) => {
+          member[header] = memberData[i][j];
+        });
+        break; 
+      }
+    }
+
+    if (!member) {
+      return { status: "error", message: "ไม่พบพนักงาน ID: " + employeeId };
+    }
+    
+    const transData = transactionsSheet.getDataRange().getValues();
+    let outstandingCount = 0;
+    for (let i = 1; i < transData.length; i++) {
+      if (transData[i][5] == employeeId && transData[i][8] == "Borrowed") {  // I = Status
+        outstandingCount++;
+      }
+    }
+
+
+    return { 
+      status: "success", 
+      member: member,
+      outstandingCount: outstandingCount 
+    };
+
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function getMemberBorrowedItems(employeeId) {
+  try {
+    const transactions = sheetToObjects(transactionsSheet.getDataRange().getValues());
+    const equipment = sheetToObjects(equipmentSheet.getDataRange().getValues());
+    
+    const borrowedItems = transactions.filter(t => 
+      t.EmployeeID == employeeId && t.Status === "Borrowed"
+    );
+
+    const results = borrowedItems.map(t => {
+      const eq = equipment.find(e => e.EquipmentBarcode == t.EquipmentBarcode);
+      return {
+        equipmentBarcode: t.EquipmentBarcode,
+        equipmentName: eq ? eq.EquipmentName : "N/A",
+        borrowDate: new Date(t.TimestampBorrow).toLocaleDateString('th-TH')
+      };
+    });
+
+    return { status: "success", items: results };
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+
+function getEquipmentDetails(equipmentBarcode) {
+  try {
+    const data = equipmentSheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] == equipmentBarcode) { 
+        let equipment = {};
+        headers.forEach((header, j) => {
+          equipment[header] = data[i][j];
+        });
+        return { status: "success", equipment: equipment };
+      }
+    }
+    return { status: "error", message: "ไม่พบอุปกรณ์ Barcode: " + equipmentBarcode };
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function processMultiBorrow(employeeId, itemsToBorrow, staffId) {
+  try {
+    const timestamp = new Date();
+    let expectedReturn = new Date();
+    expectedReturn.setDate(expectedReturn.getDate() + 1); 
+    
+    const equipmentData = equipmentSheet.getDataRange().getValues();
+    let errors = [];
+    let itemsToProcess = [];
+
+    for (const barcode of itemsToBorrow) {
+      let found = false;
+      for (let i = 1; i < equipmentData.length; i++) {
+        if (equipmentData[i][0] == barcode) { 
+          found = true;
+          if (equipmentData[i][4] != "คืน") { 
+            errors.push(`อุปกรณ์ ${barcode} ไม่พร้อม (สถานะ: ${equipmentData[i][4]})`);
+          } else {
+            itemsToProcess.push({ barcode: barcode, rowIndex: i + 1 });
+          }
+          break;
+        }
+      }
+      if (!found) errors.push(`ไม่พบอุปกรณ์ ${barcode}`);
+    }
+
+    if (errors.length > 0) {
+      return { status: "error", message: errors.join("\n") };
+    }
+
+    let transactionsAdded = 0;
+    for (const item of itemsToProcess) {
+      const transactionId = `T-${String(transactionsSheet.getLastRow() + 1).padStart(4, '0')}`;
+      transactionsSheet.appendRow([
+        transactionId,        // A
+        timestamp,            // B TimestampBorrow
+        "",                   // C TimestampReturn (ยังไม่มี)
+        expectedReturn,       // D ExpectedReturnDate
+        item.barcode,         // E EquipmentBarcode
+        employeeId,           // F EmployeeID
+        staffId,              // G StaffBorrowID
+        "",                   // H StaffReturnID (ยังไม่มีตอนยืม)
+        "Borrowed"            // I Status
+      ]);
+      equipmentSheet.getRange(item.rowIndex, 5).setValue("ยืม");
+      transactionsAdded++;
+    }
+    
+    SpreadsheetApp.flush();
+    return { status: "success", message: `ยืมอุปกรณ์ ${transactionsAdded} ชิ้นสำเร็จ` };
+    
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function processMultiReturn(itemsToReturn, staffId) {
+  try {
+    const returnTimestamp = new Date();
+    const equipmentData = equipmentSheet.getDataRange().getValues();
+    const transData = transactionsSheet.getDataRange().getValues();
+    
+    let errors = [];
+    let itemsToProcess = []; 
+    
+    for (const barcode of itemsToReturn) {
+      let eqFound = false;
+      let transFound = false;
+      
+      for (let i = 1; i < equipmentData.length; i++) {
+        if (equipmentData[i][0] == barcode) { 
+          eqFound = true;
+          if (equipmentData[i][4] != "ยืม") {
+            errors.push(`อุปกรณ์ ${barcode} ไม่ได้ถูกยืม (สถานะ: ${equipmentData[i][4]})`);
+          }
+          
+          for (let j = transData.length - 1; j >= 1; j--) {
+            if (transData[j][4] == barcode && transData[j][8] == "Borrowed") { // I = Status
+              itemsToProcess.push({ 
+                transRowIndex: j + 1, 
+                eqRowIndex: i + 1 
+              });
+              transFound = true;
+              break;
+            }
+          }
+          break;
+        }
+      }
+      if (!eqFound) errors.push(`ไม่พบอุปกรณ์ ${barcode}`);
+      if (eqFound && !transFound && !errors.some(e => e.includes(barcode))) {
+        errors.push(`ไม่พบรายการยืมสำหรับ ${barcode}`);
+      }
+    }
+    
+    if (errors.length > 0) {
+      return { status: "error", message: errors.join("\n") };
+    }
+    
+    let itemsReturned = 0;
+    for (const item of itemsToProcess) {
+      transactionsSheet.getRange(item.transRowIndex, 3).setValue(returnTimestamp); // C TimestampReturn
+      transactionsSheet.getRange(item.transRowIndex, 8).setValue(staffId);         // H StaffReturnID
+      transactionsSheet.getRange(item.transRowIndex, 9).setValue("Returned");      // I Status
+      equipmentSheet.getRange(item.eqRowIndex, 5).setValue("คืน");                 // E Status อุปกรณ์
+      itemsReturned++;
+    }
+
+    
+    SpreadsheetApp.flush();
+    return { status: "success", message: `คืนอุปกรณ์ ${itemsReturned} ชิ้นสำเร็จ` };
+    
+  } catch (e) {
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function uploadImageToDrive(base64Data, fileName) {
+  if (IMAGE_UPLOAD_FOLDER_ID === "YOUR_FOLDER_ID_HERE") {
+    throw new Error("โปรดตั้งค่า IMAGE_UPLOAD_FOLDER_ID ใน Code.gs ก่อน");
+  }
+  
+  try {
+    const parts = base64Data.split(",");
+    const mimeType = parts[0].match(/:(.*?);/)[1];
+    const bytes = Utilities.base64Decode(parts[1]);
+    const blob = Utilities.newBlob(bytes, mimeType, fileName);
+    
+    const folder = DriveApp.getFolderById(IMAGE_UPLOAD_FOLDER_ID);
+    const file = folder.createFile(blob);
+    
+    
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    
+    const fileId = file.getId();
+    
+    
+    return "https://lh3.googleusercontent.com/d/" + fileId;
+    
+  } catch (e) {
+    Logger.log(e);
+    throw new Error("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: " + e.message);
+  }
+}
+
+
+function addEquipment(equipmentData, imageBase64) {
+  try {
+    
+    if (imageBase64) {
+      const fileName = `equip_${equipmentData.EquipmentBarcode}_${new Date().getTime()}`;
+      const imageUrl = uploadImageToDrive(imageBase64, fileName);
+      equipmentData.EquipmentImage = imageUrl;
+    }
+    
+    
+    const headers = equipmentSheet.getRange(1, 1, 1, equipmentSheet.getLastColumn()).getValues()[0];
+    const newRow = headers.map(header => equipmentData[header] || "");
+    
+    
+    equipmentSheet.appendRow(newRow);
+    
+    SpreadsheetApp.flush();
+    return { status: "success", message: "เพิ่มอุปกรณ์สำเร็จ" };
+    
+  } catch (e) {
+    Logger.log(e);
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function updateEquipment(equipmentData, imageBase64) {
+   try {
+    
+    if (imageBase64) {
+      const fileName = `equip_${equipmentData.EquipmentBarcode}_${new Date().getTime()}`;
+      const imageUrl = uploadImageToDrive(imageBase64, fileName);
+      equipmentData.EquipmentImage = imageUrl;
+    }
+    
+    
+    const data = equipmentSheet.getDataRange().getValues();
+    const headers = data[0];
+    const barcodeColIndex = headers.indexOf("EquipmentBarcode");
+    let rowIndex = -1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][barcodeColIndex] == equipmentData.EquipmentBarcode) {
+        rowIndex = i + 1; 
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { status: "error", message: "ไม่พบ Barcode ที่ต้องการอัปเดต" };
+    }
+    
+    
+    const updatedRow = headers.map(header => equipmentData[header] || "");
+    
+    
+    equipmentSheet.getRange(rowIndex, 1, 1, headers.length).setValues([updatedRow]);
+    
+    SpreadsheetApp.flush();
+    return { status: "success", message: "อัปเดตข้อมูลสำเร็จ" };
+    
+  } catch (e) {
+    Logger.log(e);
+    return { status: "error", message: e.message };
+  }
+}
+
+
+
+function sheetToObjects(data) {
+  const headers = data[0];
+  const objects = [];
+  for (let i = 1; i < data.length; i++) {
+    let obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = data[i][j];
+    }
+    objects.push(obj);
+  }
+  return objects;
+}
+
+
+
+
+function getAllTransactionHistory() {
+  try {
+    if (!transactionsSheet) return { status: "error", message: "ไม่พบ Sheet: Transactions" };
+
+    const data = transactionsSheet.getDataRange().getDisplayValues();
+    if (data.length < 2) return { status: "success", data: [] };
+
+    const headers = data[0].map(h => h.toString().trim());
+    const objects = [];
+
+    for (let i = 1; i < data.length; i++) {
+      let obj = {};
+      for (let j = 0; j < headers.length; j++) {
+        obj[headers[j]] = data[i][j];
+      }
+      objects.push(obj);
+    }
+
+    
+    const equipRaw = equipmentSheet.getDataRange().getValues();
+    const equipHeaders = equipRaw[0];
+    const equipmentList = [];
+    for(let i=1; i<equipRaw.length; i++) {
+       let eObj = {};
+       equipHeaders.forEach((h, index) => eObj[h] = equipRaw[i][index]);
+       equipmentList.push(eObj);
+    }
+
+    const memRaw = membersSheet.getDataRange().getValues();
+    const memHeaders = memRaw[0];
+    const memberList = [];
+    for(let i=1; i<memRaw.length; i++) {
+       let mObj = {};
+       memHeaders.forEach((h, index) => mObj[h] = memRaw[i][index]);
+       memberList.push(mObj);
+    }
+
+    
+    const staffRaw = staffSheet.getDataRange().getValues();
+    
+    const staffList = [];
+    for(let i=1; i<staffRaw.length; i++) {
+       
+       staffList.push({ id: staffRaw[i][0], name: staffRaw[i][2] });
+    }
+
+    
+    const historyList = objects.map(t => {
+      const eq  = equipmentList.find(e => e.EquipmentBarcode == t.EquipmentBarcode);
+      const mem = memberList.find(m => m.EmployeeID == t.EmployeeID);
+      
+      // รองรับทั้งชื่อคอลัมน์ใหม่และของเดิม (StaffID)
+      const borrowStaffId = t.StaffBorrowID || t.StaffID || "";
+      const returnStaffId = t.StaffReturnID || "";
+
+      const stBorrow = staffList.find(s => s.id == borrowStaffId);
+      const stReturn = staffList.find(s => s.id == returnStaffId);
+
+      const parseThaiDate = (dateStr) => { /* เหมือนเดิม */ };
+
+      const sortDate = parseThaiDate(t.TimestampBorrow);
+
+      return {
+        transId: t.TransactionID,
+        borrowDate: t.TimestampBorrow || '-',
+        returnDate: t.TimestampReturn || '-',
+        sortDate: sortDate ? sortDate.getTime() : 0,
+        equipmentName: eq ? eq.EquipmentName : t.EquipmentBarcode,
+        memberName: mem ? mem.FullName : t.EmployeeID,
+        department: mem ? mem.Department : '-',
+        status: t.Status === 'Borrowed' ? 'กำลังยืม' : 'คืนแล้ว',
+
+        // 🔸 ใหม่: ส่ง 2 ฟิลด์แยกกัน
+        borrowStaffName: stBorrow ? stBorrow.name : (borrowStaffId || '-'),
+        returnStaffName: stReturn ? stReturn.name : (returnStaffId || '-')
+      };
+    });
+
+
+    historyList.sort((a, b) => b.sortDate - a.sortDate);
+    return { status: "success", data: historyList };
+
+  } catch (e) {
+    return { status: "error", message: "Server Error: " + e.toString() };
+  }
+}
+
+function updateMember(memberData, imageBase64) {
+   try {
+    
+    if (imageBase64) {
+      const fileName = `member_${memberData.EmployeeID}_${new Date().getTime()}`;
+      
+      const imageUrl = uploadImageToDrive(imageBase64, fileName);
+      memberData.ProfilePicURL = imageUrl; 
+    }
+
+    
+    const data = membersSheet.getDataRange().getValues();
+    const headers = data[0];
+    const idColIndex = headers.indexOf("EmployeeID");
+    let rowIndex = -1;
+
+    if (idColIndex === -1) return { status: "error", message: "ไม่พบคอลัมน์ EmployeeID" };
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][idColIndex] == memberData.EmployeeID) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) return { status: "error", message: "ไม่พบ EmployeeID: " + memberData.EmployeeID };
+    
+    
+    const originalRow = data[rowIndex - 1];
+    const updatedRow = headers.map((header, index) => {
+     
+      if (memberData[header] !== undefined) {
+        return memberData[header];
+      } else {
+        return originalRow[index];
+      }
+    });
+
+    
+    membersSheet.getRange(rowIndex, 1, 1, headers.length).setValues([updatedRow]);
+    SpreadsheetApp.flush();
+    
+    return { status: "success", message: "อัปเดตข้อมูลสมาชิกสำเร็จ" };
+
+  } catch (e) {
+    Logger.log(e);
+    return { status: "error", message: e.message };
+  }
+}
+
+
+function addMember(memberData, imageBase64) {
+  try {
+    
+    if (imageBase64) {
+      const fileName = `member_${memberData.EmployeeID}_${new Date().getTime()}`;
+      const imageUrl = uploadImageToDrive(imageBase64, fileName);
+      memberData.ProfilePicURL = imageUrl;
+    } else {
+      
+      memberData.ProfilePicURL = memberData.ProfilePicURL || ""; 
+    }
+
+    
+    const data = membersSheet.getDataRange().getValues();
+    const headers = data[0];
+    const idColIndex = headers.indexOf("EmployeeID");
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][idColIndex] == memberData.EmployeeID) {
+        return { status: "error", message: "EmployeeID " + memberData.EmployeeID + " นี้มีอยู่ในระบบแล้ว" };
+      }
+    }
+
+    
+    const newRow = headers.map(header => memberData[header] || "");
+    
+    
+    membersSheet.appendRow(newRow);
+    SpreadsheetApp.flush();
+
+    return { status: "success", message: "เพิ่มสมาชิกใหม่สำเร็จ" };
+    
+  } catch (e) {
+    Logger.log(e);
+    return { status: "error", message: e.message };
+  }
+}

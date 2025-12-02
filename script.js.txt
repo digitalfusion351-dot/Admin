@@ -1,0 +1,1668 @@
+<script>
+  // Global variable to store current user
+  let currentUser = null;
+  
+  // Globals for Modals
+  let currentBorrowEmployee = null;
+  let itemsToBorrow = [];
+  let itemsToReturn = [];
+  let currentOutstandingItems = []; 
+
+  // ตัวแปร Global สำหรับ History
+  let currentHistoryData = []; 
+  let allHistoryDataGlobal = []; 
+  
+  // (*** ใหม่: Global สำหรับหน้า Equipment ***)
+  let allEquipmentData = []; // เก็บข้อมูลอุปกรณ์ทั้งหมดสำหรับค้นหา
+  let allMembersData = []; // (*** ใหม่: เก็บข้อมูลสมาชิกทั้งหมด ***)
+  let currentEditingBarcode = null;
+  let newImageBase64 = null; // เก็บ Base64 ของรูปใหม่
+  let allHistoryData = [];
+  // --- (1) DOM Elements ---
+  // Pages
+  const loginPage = document.getElementById('login-page');
+  const mainApp = document.getElementById('main-app'); 
+  const loader = document.getElementById('loader');
+  
+  // Login
+  const loginForm = document.getElementById('login-form');
+  const loginButton = document.getElementById('login-button');
+  const loginStatus = document.getElementById('login-status');
+  const logoutButton = document.getElementById('logout-button');
+  
+  // Navigation
+  const navLinks = document.querySelectorAll('.nav-link');
+  const contentViews = document.querySelectorAll('.content-view');
+  const userNameEl = document.getElementById('user-name');
+  const userPicEl = document.getElementById('user-pic');
+
+  // Slide Bar Elements
+  const sidebar = document.querySelector('.sidebar');
+
+  // (*** ใหม่: ปุ่ม และ Modal เลือกรายการ ***)
+  const openTransactionBtn = document.getElementById('open-transaction-btn');
+  const transactionChoiceModal = document.getElementById('transaction-choice-modal');
+  const choiceModalClose = document.getElementById('choice-modal-close');
+  const choiceBorrowBtn = document.getElementById('choice-borrow-btn');
+  const choiceReturnBtn = document.getElementById('choice-return-btn');
+  
+  // (*** ใหม่: Container สำหรับข้อมูล Dynamic ***)
+  const recentLoansTbody = document.getElementById('recent-loans-tbody');
+  const overdueListContainer = document.getElementById('overdue-list-container');
+  
+  // Borrow Modal
+  const borrowModal = document.getElementById('borrow-modal');
+  const borrowModalClose = document.getElementById('borrow-modal-close');
+  const borrowStep1 = document.getElementById('borrow-step-1');
+  const borrowStep2 = document.getElementById('borrow-step-2');
+  const borrowStepIndicator2 = document.getElementById('borrow-step-indicator-2'); 
+  const modalEmployeeInput = document.getElementById('modal-employee-id');
+  const modalEmployeeDetails = document.getElementById('modal-employee-details');
+  const borrowNextStepBtn = document.getElementById('borrow-next-step-btn');
+  const modalBorrowInput = document.getElementById('modal-borrow-barcode');
+  const borrowList = document.getElementById('borrow-list');
+  const confirmBorrowBtn = document.getElementById('confirm-borrow-btn');
+  const borrowModalStatus = document.getElementById('borrow-modal-status');
+  
+  const modalProfilePic = document.getElementById('modal-profile-pic');
+  const modalProfileName = document.getElementById('modal-profile-name');
+  const modalProfileId = document.getElementById('modal-profile-id');
+  const modalProfileDept = document.getElementById('modal-profile-dept');
+  const modalProfileOutstanding = document.getElementById('modal-profile-outstanding');
+  
+  // Return Modal
+  const returnModal = document.getElementById('return-modal');
+  const returnModalClose = document.getElementById('return-modal-close');
+  const returnStep1 = document.getElementById('return-step-1');
+  const returnStep2 = document.getElementById('return-step-2');
+  const returnStepIndicator2 = document.getElementById('return-step-indicator-2');
+  const modalReturnEmployeeInput = document.getElementById('modal-return-employee-id');
+  const modalReturnEmployeeDetails = document.getElementById('modal-return-employee-details');
+  const returnNextStepBtn = document.getElementById('return-next-step-btn');
+  const modalReturnInput = document.getElementById('modal-return-barcode');
+  const returnList = document.getElementById('return-list');
+  const confirmReturnBtn = document.getElementById('confirm-return-btn');
+  const returnModalStatus = document.getElementById('return-modal-status');
+  
+  const modalReturnProfilePic = document.getElementById('modal-return-profile-pic');
+  const modalReturnProfileName = document.getElementById('modal-return-profile-name');
+  const modalReturnProfileId = document.getElementById('modal-return-profile-id');
+  const modalReturnProfileDept = document.getElementById('modal-return-profile-dept');
+  const modalReturnProfileOutstanding = document.getElementById('modal-return-profile-outstanding');
+  
+  const outstandingItemsList = document.getElementById('outstanding-items-list');
+  const remainingItemsList = document.getElementById('remaining-items-list');
+
+  // (*** อัปเดต: Tables ***)
+  const equipmentTableBody = document.querySelector('#equipment-table tbody');
+  const membersTableBody = document.querySelector('#members-table tbody');
+  
+  // (*** ใหม่: Equipment Page Elements ***)
+  const equipmentSearchInput = document.getElementById('equipment-search');
+  const addEquipmentBtn = document.getElementById('add-equipment-btn');
+
+  const memberSearchInput = document.getElementById('member-search');
+  const addMemberBtn = document.getElementById('add-member-btn');
+  const memberModalMode = document.getElementById('member-modal-mode');
+  // (*** ใหม่: Equipment Modal Elements ***)
+  const equipmentModal = document.getElementById('equipment-modal');
+  const equipmentModalClose = document.getElementById('equipment-modal-close');
+  const equipmentModalTitle = document.getElementById('equipment-modal-title');
+  const equipmentForm = document.getElementById('equipment-form');
+  const equipmentModalMode = document.getElementById('equipment-modal-mode');
+  const equipmentModalImgPreview = document.getElementById('equipment-modal-img-preview');
+  const equipmentModalImageInput = document.getElementById('equipment-modal-image-input');
+  const equipmentModalBarcode = document.getElementById('equipment-modal-barcode');
+  const equipmentModalName = document.getElementById('equipment-modal-name');
+  const equipmentModalAsset = document.getElementById('equipment-modal-asset');
+  const equipmentModalCategory = document.getElementById('equipment-modal-category');
+  const equipmentModalStatus = document.getElementById('equipment-modal-status');
+  const equipmentModalDetails = document.getElementById('equipment-modal-details');
+  const saveEquipmentBtn = document.getElementById('save-equipment-btn');
+  const cancelEquipmentBtn = document.getElementById('cancel-equipment-btn');
+ 
+  const equipmentModalStatusMsg = document.getElementById('equipment-modal-status-msg');
+
+  
+  // Confirm Logout Modal
+  const confirmLogoutModal = document.getElementById('confirm-logout-modal');
+  const logoutConfirmBtn = document.getElementById('logout-confirm-btn');
+  const logoutCancelBtn = document.getElementById('logout-cancel-btn'); 
+  const logoutCancelBtn2 = document.getElementById('logout-cancel-btn-2'); 
+  
+  // (*** ใหม่: Member Modal Elements ***)
+  const memberModal = document.getElementById('member-modal');
+  const memberModalClose = document.getElementById('member-modal-close');
+  const memberModalTitle = document.getElementById('member-modal-title');
+  const memberForm = document.getElementById('member-form');
+  const memberModalEmployeeId = document.getElementById('member-modal-employee-id');
+  const memberModalName = document.getElementById('member-modal-name');
+  const memberModalDept = document.getElementById('member-modal-dept');
+  const memberModalPhone = document.getElementById('member-modal-phone');
+  const memberModalEmail = document.getElementById('member-modal-email');
+  const memberModalPicUrl = document.getElementById('member-modal-pic-url');
+  const saveMemberBtn = document.getElementById('save-member-btn');
+  const cancelMemberBtn = document.getElementById('cancel-member-btn');
+  const memberModalStatusMsg = document.getElementById('member-modal-status-msg');
+
+
+  /*********************************
+   * (2) LOADING & STATUS FUNCTIONS
+   *********************************/
+  function showLoader() { loader.style.display = 'flex'; }
+  function hideLoader() { loader.style.display = 'none'; }
+
+  function setStatus(element, message, isError = false) {
+    element.textContent = message;
+    element.className = 'status-message ' + (isError ? 'error' : 'success');
+  }
+  function clearStatus(element) {
+    element.textContent = '';
+    element.className = 'status-message';
+  }
+
+  /*********************************
+   * (3) LOGIN / LOGOUT
+   *********************************/
+  loginForm.addEventListener('submit', handleLogin);
+  logoutButton.addEventListener('click', handleLogout); 
+
+  function handleLogin(e) {
+    e.preventDefault();
+    const userId = document.getElementById('userId').value;
+    const password = document.getElementById('password').value;
+    showLoader();
+    loginButton.disabled = true;
+    setStatus(loginStatus, 'กำลังตรวจสอบ...');
+    google.script.run
+      .withSuccessHandler(onLoginSuccess)
+      .withFailureHandler(onLoginFailure)
+      .checkLogin({ userId: userId, password: password });
+  }
+  function onLoginSuccess(response) {
+    hideLoader();
+    loginButton.disabled = false;
+    if (response.status === 'success') {
+      currentUser = response.user;
+      loginPage.style.display = 'none';
+      mainApp.style.display = 'flex';
+      userNameEl.textContent = currentUser.fullName;
+      if(currentUser.profilePic) userPicEl.src = currentUser.profilePic;
+      loadDashboard();
+    } else {
+      setStatus(loginStatus, response.message, true);
+    }
+  }
+  function onLoginFailure(error) {
+    hideLoader();
+    loginButton.disabled = false;
+    setStatus(loginStatus, error.message, true);
+  }
+
+  function handleLogout(e) { 
+    e.preventDefault(); 
+    confirmLogoutModal.style.display = 'flex'; 
+  }
+
+  logoutConfirmBtn.addEventListener('click', () => {
+    currentUser = null;
+    mainApp.style.display = 'none';
+    loginPage.style.display = 'flex';
+    loginForm.reset();
+    clearStatus(loginStatus);
+    confirmLogoutModal.style.display = 'none'; 
+  });
+
+  logoutCancelBtn.addEventListener('click', () => {
+    confirmLogoutModal.style.display = 'none'; 
+  });
+  
+  logoutCancelBtn2.addEventListener('click', () => {
+    confirmLogoutModal.style.display = 'none'; 
+  });
+
+
+  /*********************************
+   * (4) NAVIGATION (HOVER)
+   *********************************/
+  sidebar.addEventListener('mouseenter', () => {
+    sidebar.classList.add('active');
+    mainApp.classList.add('sidebar-active');
+  });
+  sidebar.addEventListener('mouseleave', () => {
+    sidebar.classList.remove('active');
+    mainApp.classList.remove('sidebar-active');
+  });
+
+  navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const page = link.getAttribute('data-page');
+      if(page) {
+        contentViews.forEach(view => view.style.display = 'none');
+        document.getElementById(page + '-view').style.display = 'block';
+        navLinks.forEach(nav => nav.classList.remove('active'));
+        link.classList.add('active');
+        
+        if(page === 'dashboard') loadDashboard();
+        if(page === 'equipment') loadEquipmentPage();
+        if(page === 'members') loadMembersPage();
+        if(page === 'history') loadHistoryPage();
+      }
+    });
+  });
+
+  /*********************************
+   * (5) (*** อัปเดต ***) DASHBOARD
+   *********************************/
+  function loadDashboard() {
+    showLoader();
+    
+    google.script.run
+      .withSuccessHandler(onDashboardDataLoad) 
+      .withFailureHandler(onGenericFailure)
+      .getDashboardDynamicData(); 
+  }
+
+  
+  function onDashboardDataLoad(response) {
+    hideLoader();
+    
+    if (response.status === 'error') {
+      alert("เกิดข้อผิดพลาดในการโหลดข้อมูล: " + response.message);
+      return;
+    }
+    
+    
+    const data = response; 
+    
+    // 1. อัปเดตการ์ดสรุป
+    renderDashboardStats(data.stats);
+    
+    // 2. อัปเดตตารางรายการล่าสุด
+    renderRecentLoans(data.recent);
+    
+    // 3. อัปเดตรายการเกินกำหนด
+    renderOverdueList(data.overdue);
+    
+    // 4. วาดกราฟ (*** อัปเดต: ส่งข้อมูลจริงทั้ง 2 ส่วนไปวาด ***)
+    if (typeof initializeCharts === 'function') {
+      initializeCharts(data.chartData, data.categoryData); 
+    }
+  }
+
+  // (*** ใหม่: ฟังก์ชันวาดการ์ด ***)
+  function renderDashboardStats(stats) {
+    document.getElementById('dash-stat-available').textContent = stats.available;
+    document.getElementById('dash-stat-borrowed').textContent = stats.borrowed;
+    document.getElementById('dash-stat-notAvailable').textContent = stats.notAvailable;
+    document.getElementById('dash-stat-overdue').textContent = stats.overdue;
+  }
+
+  // (*** ใหม่: ฟังก์ชันวาดตารางล่าสุด ***)
+  function renderRecentLoans(loans) {
+    recentLoansTbody.innerHTML = ""; // ล้างข้อมูลเก่า
+    
+    if (!loans || loans.length === 0) {
+      recentLoansTbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">ไม่พบรายการยืมล่าสุด</td></tr>';
+      return;
+    }
+    
+    loans.forEach(item => {
+      let statusClass = "text-green-700 bg-green-100"; // คืนแล้ว
+      if (item.status === "กำลังยืม") {
+        statusClass = "text-yellow-700 bg-yellow-100";
+      } else if (item.status === "เกินกำหนด") {
+        statusClass = "text-red-700 bg-red-100";
+      }
+
+      const row = `
+        <tr class="hover:bg-gray-50">
+            <td class="py-4 flex items-center">
+                <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3 text-orange-600 font-semibold">${item.memberInitials}</div>
+                <span class="font-medium text-gray-800">${item.memberName}</span>
+            </td>
+            <td class="py-4 text-gray-700">${item.equipmentName}</td>
+            <td class="py-4 text-gray-700">${item.department}</td>
+            <td class="py-4">
+                <span class="px-3 py-1 ${statusClass} rounded-full text-sm font-medium">${item.status}</span>
+            </td>
+        </tr>
+      `;
+      recentLoansTbody.innerHTML += row;
+    });
+  }
+
+  // (*** ใหม่: ฟังก์ชันวาดรายการเกินกำหนด ***)
+  function renderOverdueList(items) {
+    overdueListContainer.innerHTML = ""; // ล้างข้อมูลเก่า
+    
+    if (!items || items.length === 0) {
+      overdueListContainer.innerHTML = '<div class="py-4 text-center text-gray-500">ไม่พบรายการเกินกำหนด</div>';
+      return;
+    }
+    
+    items.forEach(item => {
+      const html = `
+        <div class="flex justify-between items-center py-4">
+            <div>
+                <div class="font-semibold text-gray-800">${item.col2_value} - ${item.col1_value}</div>
+                <div class="text-sm text-red-600 font-medium">เกินกำหนด ${item.daysOverdue} วัน</div>
+            </div>
+            <button class="px-3 py-1 bg-transparent text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">แจ้งเตือน</button>
+        </div>
+      `;
+      overdueListContainer.innerHTML += html;
+    });
+  }
+
+
+  /*********************************
+   * (6) MODAL FUNCTIONS
+   *********************************/
+  
+  // (*** ใหม่: Event Listeners สำหรับปุ่ม "ทำรายการ" ***)
+  openTransactionBtn.addEventListener('click', () => {
+    transactionChoiceModal.style.display = 'flex';
+  });
+  
+  choiceModalClose.addEventListener('click', () => {
+    transactionChoiceModal.style.display = 'none';
+  });
+  
+  choiceBorrowBtn.addEventListener('click', () => {
+    transactionChoiceModal.style.display = 'none';
+    openBorrowModal(); // เปิด Modal ยืม
+  });
+  
+  choiceReturnBtn.addEventListener('click', () => {
+    transactionChoiceModal.style.display = 'none';
+    openReturnModal(); // เปิด Modal คืน
+  });
+
+
+  // --- BORROW MODAL ---
+  borrowModalClose.addEventListener('click', closeBorrowModal);
+  
+  function openBorrowModal() {
+    borrowModal.style.display = 'flex';
+    borrowStep1.style.display = 'block';
+    borrowStep2.style.display = 'none';
+    borrowStepIndicator2.classList.remove('active'); 
+    modalEmployeeInput.value = '';
+    modalEmployeeDetails.style.display = 'none';
+    borrowNextStepBtn.disabled = true;
+    borrowList.innerHTML = '';
+    itemsToBorrow = [];
+    currentBorrowEmployee = null;
+    clearStatus(borrowModalStatus);
+    modalEmployeeInput.focus();
+  }
+  function closeBorrowModal() {
+    borrowModal.style.display = 'none';
+  }
+  
+  modalEmployeeInput.addEventListener('keyup', e => {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      const empId = modalEmployeeInput.value;
+      if (!empId) return;
+      showLoader();
+      clearStatus(borrowModalStatus);
+      google.script.run
+        .withSuccessHandler(onGetMemberDetails)
+        .withFailureHandler(onModalFailure)
+        .getMemberDetails(empId);
+    }
+  });
+  
+  function onGetMemberDetails(response) {
+    hideLoader();
+    if (response.status === 'success') {
+      const mem = response.member;
+      const outstandingCount = response.outstandingCount; 
+      currentBorrowEmployee = mem;
+      modalProfileName.textContent = mem.FullName;
+      modalProfileId.textContent = `ID: ${mem.EmployeeID}`;
+      modalProfileDept.textContent = `แผนก: ${mem.Department}`;
+      modalProfileOutstanding.textContent = outstandingCount;
+      modalProfilePic.src = mem.ProfilePicURL || "https://i.imgur.com/a/img923/8537/nL3zxY.png";
+      modalEmployeeDetails.style.display = 'flex'; 
+      borrowNextStepBtn.disabled = false;
+      borrowNextStepBtn.focus();
+    } else {
+      setStatus(borrowModalStatus, response.message, true);
+      modalEmployeeDetails.style.display = 'none'; 
+      borrowNextStepBtn.disabled = true;
+      currentBorrowEmployee = null;
+    }
+  }
+
+  borrowNextStepBtn.addEventListener('click', () => {
+    borrowStep1.style.display = 'none';
+    borrowStep2.style.display = 'block';
+    borrowStepIndicator2.classList.add('active'); 
+    clearStatus(borrowModalStatus);
+    modalBorrowInput.focus();
+  });
+
+  modalBorrowInput.addEventListener('keyup', e => {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      const barcode = modalBorrowInput.value;
+      if (!barcode) return;
+      if (itemsToBorrow.includes(barcode)) {
+        setStatus(borrowModalStatus, `อุปกรณ์ ${barcode} ถูกสแกนไปแล้ว`, true);
+        modalBorrowInput.value = '';
+        return;
+      }
+      showLoader();
+      clearStatus(borrowModalStatus);
+      google.script.run
+        .withSuccessHandler(onGetBorrowEquipmentDetails)
+        .withFailureHandler(onModalFailure)
+        .getEquipmentDetails(barcode);
+    }
+  });
+  
+  function onGetBorrowEquipmentDetails(response) {
+    hideLoader();
+    const barcode = modalBorrowInput.value;
+    let html = '';
+    if (response.status === 'success') {
+      const eq = response.equipment;
+      if (eq.Status === 'คืน') {
+        itemsToBorrow.push(barcode);
+        html = `<li><span class="item-name">${eq.EquipmentName}</span><span class="item-barcode">${eq.EquipmentBarcode}</span></li>`;
+      } else {
+        html = `<li class="error"><span class="item-name">ไม่พร้อมใช้งาน (สถานะ: ${eq.Status})</span><span class="item-barcode">${barcode}</span></li>`;
+      }
+    } else {
+       html = `<li class="error"><span class="item-name">${response.message}</span></li>`;
+    }
+    borrowList.innerHTML += html;
+    modalBorrowInput.value = ''; 
+    modalBorrowInput.focus();
+  }
+  
+  confirmBorrowBtn.addEventListener('click', () => {
+    if (itemsToBorrow.length === 0) {
+      setStatus(borrowModalStatus, "กรุณาสแกนอุปกรณ์อย่างน้อย 1 ชิ้น", true);
+      return;
+    }
+    showLoader();
+    google.script.run
+      .withSuccessHandler(onMultiBorrowSuccess)
+      .withFailureHandler(onModalFailure)
+      .processMultiBorrow(currentBorrowEmployee.EmployeeID, itemsToBorrow, currentUser.userId);
+  });
+  
+  function onMultiBorrowSuccess(response) {
+    hideLoader();
+    if(response.status === 'success') {
+      setStatus(borrowModalStatus, response.message, false);
+      setTimeout(() => {
+        closeBorrowModal();
+        loadDashboard(); 
+      }, 1500);
+    } else {
+      setStatus(borrowModalStatus, response.message, true);
+    }
+  }
+  
+  // --- RETURN MODAL ---
+  returnModalClose.addEventListener('click', closeReturnModal);
+  
+  function openReturnModal() {
+    returnModal.style.display = 'flex';
+    returnStep1.style.display = 'block';
+    returnStep2.style.display = 'none';
+    returnStepIndicator2.classList.remove('active');
+    modalReturnEmployeeInput.value = '';
+    modalReturnEmployeeDetails.style.display = 'none';
+    returnNextStepBtn.disabled = true;
+    outstandingItemsList.innerHTML = '';
+    returnList.innerHTML = '';
+    remainingItemsList.innerHTML = '';
+    itemsToReturn = [];
+    currentOutstandingItems = [];
+    clearStatus(returnModalStatus);
+    modalReturnEmployeeInput.focus();
+  }
+  function closeReturnModal() {
+    returnModal.style.display = 'none';
+  }
+  
+  modalReturnEmployeeInput.addEventListener('keyup', e => {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      const empId = modalReturnEmployeeInput.value;
+      if (!empId) return;
+      showLoader();
+      clearStatus(returnModalStatus);
+      google.script.run
+        .withSuccessHandler(onGetReturnMemberDetails)
+        .withFailureHandler(onModalFailure)
+        .getMemberDetails(empId);
+      google.script.run
+        .withSuccessHandler(onGetMemberBorrowedItems)
+        .withFailureHandler(onModalFailure)
+        .getMemberBorrowedItems(empId);
+    }
+  });
+
+  function onGetReturnMemberDetails(response) {
+    hideLoader(); 
+    if (response.status === 'success') {
+      const mem = response.member;
+      const outstandingCount = response.outstandingCount; 
+      modalReturnProfileName.textContent = mem.FullName;
+      modalReturnProfileId.textContent = `ID: ${mem.EmployeeID}`;
+      modalReturnProfileDept.textContent = `แผนก: ${mem.Department}`;
+      modalReturnProfileOutstanding.textContent = outstandingCount;
+      modalReturnProfilePic.src = mem.ProfilePicURL || "https://i.imgur.com/a/img923/8537/nL3zxY.png";
+      modalReturnEmployeeDetails.style.display = 'flex'; 
+      returnNextStepBtn.disabled = false;
+      returnNextStepBtn.focus();
+    } else {
+      setStatus(returnModalStatus, response.message, true);
+      modalReturnEmployeeDetails.style.display = 'none'; 
+      returnNextStepBtn.disabled = true;
+    }
+  }
+
+  function onGetMemberBorrowedItems(response) {
+    hideLoader();
+    outstandingItemsList.innerHTML = '';
+    if (response.status === 'success') {
+      currentOutstandingItems = response.items; 
+      if (response.items.length === 0) {
+         outstandingItemsList.innerHTML = '<li>ไม่พบรายการที่ยืมค้าง</li>';
+         returnNextStepBtn.disabled = true; 
+         return;
+      }
+      response.items.forEach(item => {
+        const html = `<li>
+            <span class="item-name">${item.equipmentName}</span>
+            <span class="item-barcode">${item.equipmentBarcode}</span>
+            <span class="item-date">ยืมเมื่อ: ${item.borrowDate}</span>
+          </li>`;
+        outstandingItemsList.innerHTML += html;
+      });
+      returnNextStepBtn.disabled = false; 
+    } else {
+      outstandingItemsList.innerHTML = `<li class="error">${response.message}</li>`;
+      returnNextStepBtn.disabled = true;
+    }
+  }
+
+  returnNextStepBtn.addEventListener('click', () => {
+    returnStep1.style.display = 'none';
+    returnStep2.style.display = 'block';
+    returnStepIndicator2.classList.add('active');
+    clearStatus(returnModalStatus);
+    updateRemainingItemsList(); 
+    modalReturnInput.focus();
+  });
+
+  modalReturnInput.addEventListener('keyup', e => {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      const barcode = modalReturnInput.value;
+      if (!barcode) return;
+      if (itemsToReturn.includes(barcode)) {
+        setStatus(returnModalStatus, `อุปกรณ์ ${barcode} ถูกสแกนไปแล้ว`, true);
+        modalReturnInput.value = '';
+        return;
+      }
+      const itemData = currentOutstandingItems.find(item => item.equipmentBarcode === barcode);
+      let html = '';
+      if (itemData) {
+        itemsToReturn.push(barcode);
+        html = `<li>
+            <span class="item-name">${itemData.equipmentName}</span>
+            <span class="item-barcode">${itemData.equipmentBarcode}</span>
+          </li>`;
+        returnList.innerHTML += html;
+        updateRemainingItemsList(); 
+      } else {
+        setStatus(returnModalStatus, `พนักงานคนนี้ไม่ได้ยืมอุปกรณ์ ${barcode}`, true);
+      }
+      modalReturnInput.value = '';
+      modalReturnInput.focus();
+    }
+  });
+
+  function updateRemainingItemsList() {
+    remainingItemsList.innerHTML = '';
+    let hasRemaining = false;
+    currentOutstandingItems.forEach(item => {
+      if (!itemsToReturn.includes(item.equipmentBarcode)) {
+        hasRemaining = true;
+        const html = `<li>
+            <span class="item-name">${item.equipmentName}</span>
+            <span class="item-barcode">${item.equipmentBarcode}</span>
+          </li>`;
+        remainingItemsList.innerHTML += html;
+      }
+    });
+    if (!hasRemaining) {
+      remainingItemsList.innerHTML = '<li>คืนครบแล้ว</li>';
+    }
+  }
+
+    confirmReturnBtn.addEventListener('click', () => {
+      if (itemsToReturn.length === 0) {
+        setStatus(returnModalStatus, "กรุณาสแกนอุปกรณ์ที่จะคืนอย่างน้อย 1 ชิ้น", true);
+        return;
+      }
+      showLoader();
+      google.script.run
+        .withSuccessHandler(onMultiReturnSuccess)
+        .withFailureHandler(onModalFailure)
+        .processMultiReturn(itemsToReturn, currentUser.userId);  // ← ส่งรหัส Staff คนที่ login
+    });
+
+  
+  function onMultiReturnSuccess(response) {
+    hideLoader();
+    if(response.status === 'success') {
+      setStatus(returnModalStatus, response.message, false);
+      setTimeout(() => {
+        closeReturnModal();
+        loadDashboard(); 
+      }, 1500);
+    } else {
+      setStatus(returnModalStatus, response.message, true);
+    }
+  }
+  
+  function onModalFailure(error) {
+    hideLoader();
+    const activeStatus = borrowModal.style.display === 'flex' ? borrowModalStatus : returnModalStatus;
+    setStatus(activeStatus, error.message, true);
+  }
+  
+  /*********************************
+   * (7) EQUIPMENT & MEMBERS PAGES (*** อัปเดต ***)
+   *********************************/
+   
+  // --- Equipment Page ---
+  function loadEquipmentPage() {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(onEquipmentLoad)
+      .withFailureHandler(onGenericFailure)
+      .getEquipmentList();
+  }
+  
+  function onEquipmentLoad(data) {
+    hideLoader();
+    allEquipmentData = data; // บันทึกข้อมูลทั้งหมด
+    renderEquipmentTable(data); // แสดงข้อมูล
+  }
+  
+  // (*** ใหม่: ฟังก์ชัน render ตารางอุปกรณ์ ***)
+  function renderEquipmentTable(data) {
+  equipmentTableBody.innerHTML = '';
+  const placeholderImg = "https://i.imgur.com/a/img923/8537/nL3zxY.png";
+  
+  if (data.length === 0) {
+     // ปรับ colspan เป็น 8 เพื่อให้ครอบคลุมทุกคอลัมน์
+     equipmentTableBody.innerHTML = '<tr><td colspan="8" class="text-center py-4">ไม่พบข้อมูลอุปกรณ์</td></tr>';
+     return;
+  }
+  
+  data.forEach(item => {
+    const row = `
+      <tr class="hover:bg-gray-50">
+        <td class="p-2">
+            <img src="${item.EquipmentImage || placeholderImg}" class="table-equipment-image w-12 h-12 object-cover rounded border border-gray-200" alt="${item.EquipmentName}">
+        </td>
+        <td class="p-2 font-medium text-gray-700">${item.EquipmentName || ''}</td>
+        <td class="p-2 text-sm text-gray-600">${item.EquipmentBarcode || ''}</td>
+        <td class="p-2 text-sm text-gray-600">${item.AssetNumber || ''}</td>
+        <td class="p-2 text-sm text-gray-600">${item.Category || ''}</td>
+        <td class="p-2 text-sm text-gray-600">${item.Status || ''}</td>
+        
+        <td class="p-2"><svg id="barcode-eq-${item.EquipmentBarcode}"></svg></td>
+        
+        <td class="p-2">
+          <div class="flex gap-2 items-center"> <button class="action-btn edit-btn text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-full transition" data-barcode="${item.EquipmentBarcode}" title="แก้ไข">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M13.586 3.586a2 2 0 112.828 2.828l-11.202 11.202a.5.5 0 01-.293.146H3.5a.5.5 0 01-.5-.5v-1.414a.5.5 0 01.146-.293l11.202-11.202zM12.879 4.3a1 1 0 00-1.414 0l-9.192 9.192V15h1.414l9.192-9.192a1 1 0 000-1.414z" />
+              </svg>
+            </button>
+
+            <button class="action-btn print-btn text-gray-500 hover:text-orange-600 hover:bg-orange-50 p-2 rounded-full transition" data-barcode="${item.EquipmentBarcode}" title="พิมพ์สติ๊กเกอร์">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
+
+          </div>
+        </td>
+      </tr>`;
+    equipmentTableBody.innerHTML += row;
+  });
+
+  // สร้าง Barcode SVG หลังจาก render ตารางเสร็จ
+  generateBarcodes(data, 'barcode-eq-', 'EquipmentBarcode');
+}
+  
+  // (*** ใหม่: Event listener สำหรับค้นหา ***)
+  equipmentSearchInput.addEventListener('keyup', () => {
+    const searchTerm = equipmentSearchInput.value.toLowerCase();
+    if (!searchTerm) {
+      renderEquipmentTable(allEquipmentData); // แสดงทั้งหมดถ้าช่องค้นหาว่าง
+      return;
+    }
+    const filteredData = allEquipmentData.filter(item => {
+      return (item.EquipmentName?.toLowerCase().includes(searchTerm) ||
+              item.EquipmentBarcode?.toLowerCase().includes(searchTerm) ||
+              item.AssetNumber?.toLowerCase().includes(searchTerm));
+    });
+    renderEquipmentTable(filteredData);
+  });
+  // (*** เพิ่มส่วนนี้ ***)
+  memberSearchInput.addEventListener('keyup', () => {
+    const searchTerm = memberSearchInput.value.toLowerCase();
+    if (!searchTerm) {
+      renderMembersTable(allMembersData); // แสดงทั้งหมดถ้าช่องค้นหาว่าง
+      return;
+    }
+    const filteredData = allMembersData.filter(item => {
+      return (item.FullName?.toLowerCase().includes(searchTerm) ||
+              item.EmployeeID?.toLowerCase().includes(searchTerm) ||
+              item.Department?.toLowerCase().includes(searchTerm));
+    });
+
+    renderMembersTable(filteredData);
+  });
+  
+  // Event Listener สำหรับปุ่มต่างๆ ในตารางอุปกรณ์
+  equipmentTableBody.addEventListener('click', (e) => {
+    // สำหรับปุ่มแก้ไข
+    const editButton = e.target.closest('.edit-btn');
+    if (editButton) {
+      const barcode = editButton.dataset.barcode;
+      const itemData = allEquipmentData.find(item => item.EquipmentBarcode == barcode);
+      if (itemData) openEquipmentModal('edit', itemData);
+    }
+
+    // สำหรับปุ่มพิมพ์ (เพิ่มใหม่)
+    const printButton = e.target.closest('.print-btn');
+    if (printButton) {
+      const barcode = printButton.dataset.barcode;
+      printEquipmentSticker(barcode); // เรียกฟังก์ชันพิมพ์ที่เราสร้างไว้
+    }
+  });
+
+
+  // --- Members Page ---
+  function loadMembersPage() {
+    showLoader();
+    google.script.run
+      .withSuccessHandler(onMembersLoad)
+      .withFailureHandler(onGenericFailure)
+      .getMemberList();
+  }
+  function onMembersLoad(data) {
+    hideLoader();
+    allMembersData = data; // (*** ใหม่: บันทึกข้อมูลทั้งหมด ***)
+    renderMembersTable(data); // (*** ใหม่: เรียกฟังก์ชัน Render ***)
+  }
+
+  function renderMembersTable(data) {
+    membersTableBody.innerHTML = '';
+    const placeholderImg = "https://i.imgur.com/a/img923/8537/nL3zxY.png";
+
+    if (data.length === 0) {
+       membersTableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4">ไม่พบข้อมูลสมาชิก</td></tr>';
+       return;
+    }
+
+    data.forEach(item => {
+      // (*** อัปเดต Row ให้มี 7 คอลัมน์ ***)
+      const row = `
+        <tr>
+          <td><img src="${item.ProfilePicURL || placeholderImg}" class="table-equipment-image" alt="${item.FullName}"></td>
+          <td>${item.EmployeeID}</td>
+          <td>${item.FullName}</td>
+          <td>${item.Department}</td>
+          <td>${item.Phone || '-'}</td>
+          <td>${item.Email || '-'}</td>
+          <td><svg id="barcode-mem-${item.EmployeeID}"></svg></td>
+          <td>
+            <button class="action-btn edit-member-btn" data-id="${item.EmployeeID}">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M13.586 3.586a2 2 0 112.828 2.828l-11.202 11.202a.5.5 0 01-.293.146H3.5a.5.5 0 01-.5-.5v-1.414a.5.5 0 01.146-.293l11.202-11.202zM12.879 4.3a1 1 0 00-1.414 0l-9.192 9.192V15h1.414l9.192-9.192a1 1 0 000-1.414z" />
+              </svg>
+            </button>
+          </td>
+        </tr>`;
+      membersTableBody.innerHTML += row;
+    });
+    
+    generateBarcodes(data, 'barcode-mem-', 'EmployeeID');
+  }
+  // --- Barcode Generator  ---
+  function generateBarcodes(data, prefix, idField) {
+    data.forEach(item => {
+      const barcodeValue = item[idField];
+      if(barcodeValue) {
+        try {
+          JsBarcode(`#${prefix}${barcodeValue}`, barcodeValue, {
+            format: "CODE128", displayValue: true, fontSize: 14, margin: 5, height: 50
+          });
+        } catch (e) {
+          console.error(`Failed to create barcode for ${barcodeValue}: ${e.message}`);
+        }
+      }
+    });
+  }
+  
+  /*********************************
+   * (8) (*** ใหม่: EQUIPMENT MODAL LOGIC ***)
+   *********************************/
+
+
+  // (*** ใหม่: Event listener (delegated) สำหรับปุ่ม Edit Member ***)
+  membersTableBody.addEventListener('click', (e) => {
+    const editButton = e.target.closest('.edit-member-btn');
+    if (editButton) {
+      const memberId = editButton.dataset.id;
+      const itemData = allMembersData.find(item => item.EmployeeID == memberId);
+      if (itemData) {
+        openMemberModal('edit', itemData);
+      }
+    }
+  });
+
+  // (*** ใหม่: Event listener สำหรับปุ่มปิด Modal [X] และ Cancel ***)
+  memberModalClose.addEventListener('click', closeMemberModal);
+  cancelMemberBtn.addEventListener('click', closeMemberModal);
+
+  
+  // (*** อัปเกรดฟังก์ชันนี้ทั้งหมด ***)
+  function openMemberModal(mode, data = null) {
+    memberForm.reset();
+    clearStatus(memberModalStatusMsg);
+    memberModalMode.value = mode;
+    
+    // (*** เพิ่ม: ล้างค่ารูปภาพ ***)
+    newImageBase64 = null; 
+    memberModalImageInput.value = null;
+    const placeholderImg = "https://i.imgur.com/a/img923/8537/nL3zxY.png"; // รูปเริ่มต้น
+
+    if (mode === 'edit') {
+      memberModalTitle.textContent = "แก้ไขข้อมูลสมาชิก";
+      memberModalEmployeeId.value = data.EmployeeID;
+      memberModalEmployeeId.readOnly = true;
+
+      memberModalName.value = data.FullName || '';
+      memberModalDept.value = data.Department || '';
+      memberModalPhone.value = data.Phone || '';
+      memberModalEmail.value = data.Email || '';
+      
+      // (*** เพิ่ม: เอารูปเดิมมาแสดง (ถ้ามี) ***)
+      memberModalImgPreview.src = data.ProfilePicURL || placeholderImg; 
+      
+    } else { // mode === 'add'
+      memberModalTitle.textContent = "เพิ่มสมาชิกใหม่";
+      memberModalEmployeeId.value = '';
+      memberModalEmployeeId.readOnly = false;
+      
+      // (*** เพิ่ม: รูปเริ่มต้น ***)
+      memberModalImgPreview.src = placeholderImg;
+    }
+
+    memberModal.style.display = 'flex';
+    memberModalEmployeeId.focus();
+  }
+
+  // (*** ใหม่: ฟังก์ชันปิด Member Modal ***)
+  function closeMemberModal() {
+    memberModal.style.display = 'none';
+  }
+
+  // (*** ใหม่: Event listener สำหรับ Save (Submit Form) ***)
+
+  memberForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveMemberBtn.disabled = true;
+    showLoader();
+    setStatus(memberModalStatusMsg, "กำลังบันทึก...", false);
+
+    // รวบรวมข้อมูลจากฟอร์ม
+    const memberData = {
+      EmployeeID: memberModalEmployeeId.value,
+      FullName: memberModalName.value,
+      Department: memberModalDept.value,
+      Phone: memberModalPhone.value,
+      Email:memberModalEmail.value,
+      // ProfilePicURL: memberModalPicUrl.value <-- ลบบรรทัดนี้ทิ้งครับ เราจะให้ Server จัดการ URL เอง
+    };
+
+    const mode = memberModalMode.value;
+    
+    // (*** เพิ่ม: ถ้าเป็นโหมด Edit และไม่ได้อัปรูปใหม่ ให้ใช้รูปเดิม ***)
+    if (mode === 'edit' && !newImageBase64) {
+       const originalData = allMembersData.find(item => item.EmployeeID == memberData.EmployeeID);
+       memberData.ProfilePicURL = originalData.ProfilePicURL || "";
+    }
+
+    const serverFunction = mode === 'add' ? 'addMember' : 'updateMember';
+
+    // (*** สำคัญ: ส่ง newImageBase64 ไปด้วย ***)
+    google.script.run
+      .withSuccessHandler(onMemberSaveSuccess)
+      .withFailureHandler(onMemberSaveFailure)
+      [serverFunction](memberData, newImageBase64); 
+  });
+
+  function onMemberSaveSuccess(response) {
+    hideLoader();
+    saveMemberBtn.disabled = false;
+    if (response.status === 'success') {
+      setStatus(memberModalStatusMsg, response.message, false);
+      setTimeout(() => {
+        closeMemberModal();
+        loadMembersPage(); // โหลดข้อมูลตารางใหม่
+      }, 1500);
+    } else {
+      setStatus(memberModalStatusMsg, response.message, true);
+    }
+  }
+  
+  function onMemberSaveFailure(error) {
+    hideLoader();
+    saveMemberBtn.disabled = false;
+    setStatus(memberModalStatusMsg, error.message, true);
+  }
+
+
+
+  // (*** ใหม่: Event listener สำหรับปุ่ม "เพิ่มอุปกรณ์" ***)
+  addEquipmentBtn.addEventListener('click', () => {
+    openEquipmentModal('add');
+  });
+  // (*** เพิ่มส่วนนี้ ***)
+  addMemberBtn.addEventListener('click', () => {
+    openMemberModal('add');
+  });
+  
+  // (*** ใหม่: Event listener สำหรับปุ่มปิด Modal [X] ***)
+  equipmentModalClose.addEventListener('click', closeEquipmentModal);
+  cancelEquipmentBtn.addEventListener('click', closeEquipmentModal);
+  
+  // (*** ใหม่: ฟังก์ชันเปิด Modal ***)
+  function openEquipmentModal(mode, data = null) {
+    equipmentForm.reset(); // ล้างฟอร์ม
+    clearStatus(equipmentModalStatusMsg); 
+    newImageBase64 = null; // ล้างรูปใหม่
+    equipmentModalImageInput.value = null; // ล้าง file input
+    
+    if (mode === 'edit') {
+      equipmentModalTitle.textContent = "แก้ไขข้อมูลอุปกรณ์";
+      equipmentModalMode.value = "edit";
+      
+      // เติมข้อมูล
+      equipmentModalBarcode.value = data.EquipmentBarcode;
+      equipmentModalBarcode.readOnly = true; // ปิดการแก้ไข Barcode
+      equipmentModalBarcode.style.cursor = 'not-allowed';
+      
+      equipmentModalName.value = data.EquipmentName || '';
+      equipmentModalAsset.value = data.AssetNumber || '';
+      equipmentModalCategory.value = data.Category || '';
+      equipmentModalStatus.value = data.Status || 'คืน'; // (*** บรรทัดนี้จะทำงานถูกต้องแล้ว ***)
+      equipmentModalDetails.value = data.EquipmentDetails || '';
+      equipmentModalImgPreview.src = data.EquipmentImage || "https://i.imgur.com/a/img923/8537/nL3zxY.png";
+      
+    } else { // mode === 'add'
+      equipmentModalTitle.textContent = "เพิ่มอุปกรณ์ใหม่";
+      equipmentModalMode.value = "add";
+      
+      equipmentModalBarcode.value = ''; // ว่าง
+      equipmentModalBarcode.readOnly = false; // เปิดให้กรอก Barcode
+      equipmentModalBarcode.style.cursor = 'auto';
+      
+      equipmentModalImgPreview.src = "https://i.imgur.com/a/img923/8537/nL3zxY.png";
+    }
+    
+    equipmentModal.style.display = 'flex';
+  }
+  
+  // (*** ใหม่: ฟังก์ชันปิด Modal ***)
+  function closeEquipmentModal() {
+    equipmentModal.style.display = 'none';
+  }
+  
+  // (*** ใหม่: Event listener เมื่อเลือกรูปภาพ ***)
+  equipmentModalImageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // จำกัด 1MB
+         setStatus(equipmentModalStatusMsg, "ไฟล์รูปภาพต้องมีขนาดไม่เกิน 1MB", true);
+         equipmentModalImageInput.value = null;
+         return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        newImageBase64 = event.target.result; // เก็บ Base64
+        equipmentModalImgPreview.src = event.target.result; // แสดง preview
+        clearStatus(equipmentModalStatusMsg);
+      };
+      reader.onerror = (error) => {
+         console.error('Error reading file:', error);
+         setStatus(equipmentModalStatusMsg, "ไม่สามารถอ่านไฟล์รูปภาพได้", true);
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // (*** ใหม่: Event listener สำหรับ Save (Submit Form) ***)
+  equipmentForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveEquipmentBtn.disabled = true;
+    showLoader();
+    setStatus(equipmentModalStatusMsg, "กำลังบันทึก...", false);
+    
+    // รวบรวมข้อมูลจากฟอร์ม
+    const equipmentData = {
+      EquipmentBarcode: equipmentModalBarcode.value,
+      EquipmentName: equipmentModalName.value,
+      AssetNumber: equipmentModalAsset.value,
+      Category: equipmentModalCategory.value,
+      Status: equipmentModalStatus.value,
+      EquipmentDetails: equipmentModalDetails.value,
+      // EquipmentImage จะถูกเติมฝั่ง Server ถ้ามีการอัปโหลด
+      // หรือถ้าไม่มีการอัปโหลด จะใช้ค่าเดิม (กรณี Edit)
+    };
+    
+    const mode = equipmentModalMode.value;
+    
+    // ถ้าเป็นโหมด Edit และไม่มีการอัปโหลดรูปใหม่ ให้คงรูปเดิมไว้
+    if (mode === 'edit' && !newImageBase64) {
+      const originalData = allEquipmentData.find(item => item.EquipmentBarcode == equipmentData.EquipmentBarcode);
+      equipmentData.EquipmentImage = originalData.EquipmentImage || "";
+    }
+    
+    // เลือกฟังก์ชันที่จะเรียก
+    const serverFunction = mode === 'add' ? 'addEquipment' : 'updateEquipment';
+    
+    google.script.run
+      .withSuccessHandler(onEquipmentSaveSuccess)
+      .withFailureHandler(onEquipmentSaveFailure)
+      [serverFunction](equipmentData, newImageBase64); // ส่งข้อมูล และ Base64 (ถ้ามี)
+  });
+
+  // (*** ใหม่: Event listener เมื่อเลือกรูปภาพสมาชิก ***)
+  const memberModalImageInput = document.getElementById('member-modal-image-input'); // 1. ประกาศตัวแปร
+  const memberModalImgPreview = document.getElementById('member-modal-img-preview'); // 2. ประกาศตัวแปร
+
+  memberModalImageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // ตรวจสอบขนาดไฟล์ (ไม่เกิน 1MB)
+      if (file.size > 1024 * 1024) { 
+         setStatus(memberModalStatusMsg, "ไฟล์รูปภาพต้องมีขนาดไม่เกิน 1MB", true);
+         memberModalImageInput.value = null;
+         return;
+      }
+      
+      // อ่านไฟล์แล้วแปลงเป็น Base64 เพื่อแสดงตัวอย่าง
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        newImageBase64 = event.target.result; // เก็บค่ารูปใหม่ลงตัวแปร Global (ใช้ร่วมกับอุปกรณ์ได้เลย)
+        memberModalImgPreview.src = event.target.result; // แสดงรูป
+        clearStatus(memberModalStatusMsg);
+      };
+      reader.onerror = (error) => {
+         console.error('Error reading file:', error);
+         setStatus(memberModalStatusMsg, "ไม่สามารถอ่านไฟล์รูปภาพได้", true);
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+  
+  function onEquipmentSaveSuccess(response) {
+    hideLoader();
+    saveEquipmentBtn.disabled = false;
+    if (response.status === 'success') {
+      setStatus(equipmentModalStatusMsg, response.message, false);
+      setTimeout(() => {
+        closeEquipmentModal();
+        loadEquipmentPage(); // โหลดข้อมูลตารางใหม่
+      }, 1500);
+    } else {
+      setStatus(equipmentModalStatusMsg, response.message, true);
+    }
+  }
+  
+  function onEquipmentSaveFailure(error) {
+    hideLoader();
+    saveEquipmentBtn.disabled = false;
+    setStatus(equipmentModalStatusMsg, error.message, true);
+  }
+
+
+  /*********************************
+   * (9) GENERIC FAILURE
+   *********************************/
+  function onGenericFailure(error) {
+    hideLoader();
+    alert("เกิดข้อผิดพลาดร้ายแรง: " + error.message);
+  }
+
+  /*********************************
+   * (10) (*** อัปเดต ***) CHART INITIALIZATION
+   *********************************/
+  
+  // ตัวแปรสำหรับเก็บ Chart instances
+  let categoryChartInstance = null;
+  let scheduleChartInstance = null;
+
+  // (*** อัปเดต: รับ trendData (กราฟเส้น) และ categoryData (กราฟวงกลม) ***)
+  function initializeCharts(trendData, categoryData) {
+    
+    // --- กราฟโดนัท (Category Chart) ---
+
+    // --- กราฟเส้น (Trend Chart) ---
+    const ctxSchedule = document.getElementById('scheduleChart');
+    if (ctxSchedule) { 
+      if (scheduleChartInstance) {
+          scheduleChartInstance.destroy();
+      }
+      
+      // (*** อัปเดต: ใช้ข้อมูลจริงหรือข้อมูลตัวอย่างถ้าไม่พบ ***)
+      const labels = (trendData && trendData.labels) ? trendData.labels : ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.'];
+      const borrowValues = (trendData && trendData.borrowData) ? trendData.borrowData : [0, 0, 0, 0, 0, 0];
+      const returnValues = (trendData && trendData.returnData) ? trendData.returnData : [0, 0, 0, 0, 0, 0];
+      
+      const scheduleData = {
+          labels: labels,
+          datasets: [
+              {
+                  label: 'ยืม (Borrowed)',
+                  data: borrowValues, // (*** ข้อมูลจริง ***)
+                  fill: true,
+                  borderColor: '#ea580c',
+                  backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                  tension: 0.3
+              }, 
+              {
+                  label: 'คืน (Returned)',
+                  data: returnValues, // (*** ข้อมูลจริง ***)
+                  fill: true,
+                  borderColor: '#9ca3af',
+                  backgroundColor: 'rgba(156, 163, 175, 0.2)',
+                  tension: 0.3
+              }
+          ]
+      };
+
+      scheduleChartInstance = new Chart(ctxSchedule.getContext('2d'), {
+          type: 'line',
+          data: scheduleData,
+          options: {
+              responsive: true,
+              scales: { y: { beginAtZero: true } },
+              plugins: { legend: { position: 'top' } }
+          }
+      });
+    }
+  }
+
+function loadHistoryPage() {
+  showLoader();
+  google.script.run
+    .withSuccessHandler(onHistoryLoad)
+    .withFailureHandler(onGenericFailure)
+    .getAllTransactionHistory();
+}
+
+
+function onHistoryLoad(response) {
+  hideLoader();
+  console.log("Data received from server:", response); // ดูข้อมูลที่ได้ใน Console
+
+  // ตรวจสอบว่ามี Element ตารางอยู่จริงหรือไม่
+  const tbody = document.getElementById('history-table-body');
+  if (!tbody) {
+    console.error("Error: ไม่พบ Element id='history-table-body'");
+    return;
+  }
+
+  // กรณี Server ส่งค่ากลับมาว่า Success
+  if (response && response.status === 'success') {
+    try {
+      // 1. เช็คว่าข้อมูลเป็น Array หรือไม่
+      if (!Array.isArray(response.data)) {
+        throw new Error("ข้อมูลที่ได้ไม่ใช่รายการ (Array)");
+      }
+
+      allHistoryDataGlobal = response.data;
+      currentHistoryData = allHistoryDataGlobal;
+      
+      // 2. พยายามสร้างตัวเลือกเดือน (ใส่ try-catch กันพัง)
+      try {
+        populateMonthFilter(allHistoryDataGlobal); 
+      } catch (err) {
+        console.error("Error in populateMonthFilter:", err);
+        // ไม่หยุดทำงาน ให้ข้ามไปแสดงตารางเลย
+      }
+
+      // 3. แสดงข้อมูลในตาราง
+      renderHistoryTable(allHistoryDataGlobal);
+
+    } catch (e) {
+      // กรณีเกิด Error ตอนประมวลผลข้อมูลหน้าเว็บ
+      console.error("Client-side Error:", e);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="text-center py-4 text-red-600 font-bold">
+            เกิดข้อผิดพลาดในการแสดงผล: ${e.message} <br>
+            <small class="text-gray-500">(กด F12 ดู Console เพื่อดูรายละเอียด)</small>
+          </td>
+        </tr>`;
+    }
+
+  } else {
+    // กรณี Server แจ้ง Error หรือไม่ตอบกลับ
+    const msg = response ? response.message : "ไม่ได้รับข้อมูลตอบกลับจาก Server";
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center py-4 text-red-600 font-bold">
+          ไม่สามารถโหลดข้อมูลได้: ${msg}
+        </td>
+      </tr>`;
+  }
+}
+
+function populateMonthFilter(data) {
+  const filterSelect = document.getElementById('history-month-filter');
+  if (!filterSelect) return; // ป้องกัน Error ถ้ายังไม่ได้แก้ HTML
+
+  const months = new Set();
+  data.forEach(item => {
+    if(item.rawTimestamp) {
+      const d = new Date(item.rawTimestamp);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    }
+  });
+  
+  const sortedMonths = Array.from(months).sort().reverse();
+  
+  filterSelect.innerHTML = '<option value="all">ทั้งหมด</option>';
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  
+  sortedMonths.forEach(key => {
+    const [year, month] = key.split('-');
+    const label = `${thMonths[parseInt(month) - 1]} ${parseInt(year) + 543}`;
+    filterSelect.innerHTML += `<option value="${key}">${label}</option>`;
+  });
+
+  // เพิ่ม Event Listener ตรงนี้เลยเพื่อให้ชัวร์
+  filterSelect.onchange = function() {
+      filterHistoryData(this.value, document.getElementById('history-search').value);
+  };
+}
+
+// ฟังก์ชันค้นหา (ผูก Event Listener แบบ inline เพื่อความชัวร์)
+const historySearchInput = document.getElementById('history-search');
+if (historySearchInput) {
+    historySearchInput.onkeyup = function(e) {
+        const month = document.getElementById('history-month-filter') ? document.getElementById('history-month-filter').value : 'all';
+        filterHistoryData(month, e.target.value);
+    };
+}
+
+
+
+function populateMonthFilter(data) {
+  const filterSelect = document.getElementById('history-month-filter');
+  if (!filterSelect) return;
+
+  const months = new Set();
+  data.forEach(item => {
+    if(item.sortDate) { // ใช้ sortDate (timestamp) แทน rawTimestamp เพื่อความชัวร์
+      const d = new Date(item.sortDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    }
+  });
+  const sortedMonths = Array.from(months).sort().reverse();
+  
+  // เก็บค่าเดิมไว้ก่อนรีเซ็ต (ถ้ามี)
+  const currentVal = filterSelect.value;
+
+  filterSelect.innerHTML = '<option value="all">เดือนทั้งหมด</option>';
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  sortedMonths.forEach(key => {
+    const [year, month] = key.split('-');
+    const label = `${thMonths[parseInt(month) - 1]} ${parseInt(year) + 543}`;
+    filterSelect.innerHTML += `<option value="${key}">${label}</option>`;
+  });
+
+  if(currentVal) filterSelect.value = currentVal;
+
+  // ผูก Event Listeners ให้กับตัวกรองทั้งหมด
+  setupFilterListeners();
+}
+
+function setupFilterListeners() {
+    const inputs = [
+        'history-month-filter', 
+        'history-status-filter', 
+        'history-date-filter', 
+        'history-search'
+    ];
+    
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) {
+            // ใช้ 'input' event สำหรับ search และ date, 'change' สำหรับ select
+            const eventType = (id === 'history-search' || id === 'history-date-filter') ? 'input' : 'change';
+            el.addEventListener(eventType, filterHistoryData);
+        }
+    });
+}
+
+// ฟังก์ชันกรองข้อมูลหลัก (รวมทุกเงื่อนไข)
+function filterHistoryData() {
+  // 1. ดึงค่าจากตัวกรองทั้งหมด
+  const monthKey = document.getElementById('history-month-filter').value;
+  const statusKey = document.getElementById('history-status-filter').value; // 'all', 'Borrowed', 'Returned'
+  const dateKey = document.getElementById('history-date-filter').value; // YYYY-MM-DD
+  const searchTerm = document.getElementById('history-search').value.toLowerCase();
+
+  currentHistoryData = allHistoryDataGlobal.filter(item => {
+    let match = true;
+    const itemDate = new Date(item.sortDate);
+
+    // --- กรอง 1: เดือน (Month) ---
+    if (monthKey !== 'all') {
+      const key = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
+      if (key !== monthKey) match = false;
+    }
+
+    // --- กรอง 2: สถานะ (Status) ---
+    if (match && statusKey !== 'all') {
+       // item.status เก็บเป็นภาษาไทย ("กำลังยืม", "คืนแล้ว") ต้องแปลงเทียบกับ value อังกฤษ
+       const isBorrowed = item.status === 'กำลังยืม';
+       if (statusKey === 'Borrowed' && !isBorrowed) match = false;
+       if (statusKey === 'Returned' && isBorrowed) match = false;
+    }
+
+    // --- กรอง 3: วันที่ (Specific Date) ---
+    if (match && dateKey) {
+        // dateKey มาในรูปแบบ YYYY-MM-DD
+        const d = itemDate;
+        const itemDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (itemDateStr !== dateKey) match = false;
+    }
+
+    // --- กรอง 4: คำค้นหา (Search) ---
+    if (match && searchTerm) {
+      const textToSearch = `${item.memberName} ${item.equipmentName} ${item.department} ${item.staffName || ''}`.toLowerCase();
+      if (!textToSearch.includes(searchTerm)) match = false;
+    }
+
+    return match;
+  });
+
+  renderHistoryTable(currentHistoryData);
+}
+
+
+
+function printHistoryReport() {
+  if (currentHistoryData.length === 0) {
+    alert("ไม่มีข้อมูลสำหรับพิมพ์รายงาน");
+    return;
+  }
+
+  // คำนวณสถิติเบื้องต้น
+  const total = currentHistoryData.length;
+  const borrowed = currentHistoryData.filter(x => x.status === 'กำลังยืม').length;
+  const returned = currentHistoryData.filter(x => x.status === 'คืนแล้ว').length;
+  const monthText = document.getElementById('history-month-filter').options[document.getElementById('history-month-filter').selectedIndex].text;
+
+  // สร้างหน้าต่างใหม่สำหรับพิมพ์
+  const printWindow = window.open('', '', 'height=600,width=800');
+  
+  let tableRows = '';
+  currentHistoryData.forEach((item, index) => {
+    const borrowStaff = item.borrowStaffName || item.staffName || '-';
+    const returnStaff = item.returnStaffName || '-';
+
+    tableRows += `
+      <tr>
+        <td style="text-align:center;">${index + 1}</td>
+        <td>${item.borrowDate}</td>
+        <td>${item.memberName} <br><small style="color:#666;">${item.department}</small></td>
+        <td>${item.equipmentName}</td>
+        <td>${borrowStaff}</td>
+        <td>${returnStaff}</td>
+        <td style="text-align:center;">${item.returnDate}</td>
+        <td style="text-align:center;">${item.status}</td>
+      </tr>`;
+  });
+
+
+  const htmlContent = `
+    <html>
+    <head>
+      <title>รายงานสรุปการยืม-คืน</title>
+      <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+      <style>
+        body { font-family: 'Sarabun', sans-serif; padding: 20px; color: #333; }
+        h1 { text-align: center; margin-bottom: 5px; font-size: 24px; }
+        .subtitle { text-align: center; font-size: 16px; color: #666; margin-bottom: 20px; }
+        .stats-box { 
+            display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; 
+            padding: 15px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px;
+        }
+        .stat-item { text-align: center; }
+        .stat-val { font-size: 20px; font-weight: bold; color: #f97316; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background-color: #f3f4f6; color: #333; }
+        tr:nth-child(even) { background-color: #fcfcfc; }
+        @media print {
+          button { display: none; }
+          body { padding: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <h1>รายงานสรุปการยืม-คืนอุปกรณ์</h1>
+      <div class="subtitle">ช่วงเวลา: ${monthText}</div>
+      
+      <div class="stats-box">
+        <div class="stat-item"><div>รายการทั้งหมด</div><div class="stat-val" style="color:#333;">${total}</div></div>
+        <div class="stat-item"><div>กำลังยืม</div><div class="stat-val">${borrowed}</div></div>
+        <div class="stat-item"><div>คืนแล้ว</div><div class="stat-val" style="color:#16a34a;">${returned}</div></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 5%;">#</th>
+            <th style="width: 12%;">วันที่ยืม</th>
+            <th style="width: 22%;">ผู้ยืม / แผนก</th> 
+            <th style="width: 18%;">อุปกรณ์</th>
+            <th style="width: 13%;">ผู้ทำรายการยืม</th>
+            <th style="width: 13%;">ผู้ทำรายการคืน</th>
+            <th style="width: 9%;">วันที่คืน</th>
+            <th style="width: 8%;">สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+
+      
+      <div style="text-align: center; margin-top: 30px;">
+        <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">สั่งพิมพ์ / บันทึกเป็น PDF</button>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+}
+
+
+function renderHistoryTable(data) {
+  const tbody = document.getElementById('history-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">ไม่พบข้อมูลประวัติ</td></tr>';
+    return;
+  }
+
+  data.forEach(item => {
+    let statusBadge = item.status === 'กำลังยืม'
+      ? '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">กำลังยืม</span>'
+      : '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">คืนแล้ว</span>';
+
+    // รองรับโครงสร้างเก่า (staffName เดิม) ด้วย
+    const borrowStaff = item.borrowStaffName || item.staffName || '-';
+    const returnStaff = item.returnStaffName || '-';
+
+    const row = `
+      <tr class="hover:bg-gray-50">
+        <td class="p-3">${item.borrowDate}</td>
+        <td class="p-3 font-medium text-gray-700">${item.memberName}</td>
+        <td class="p-3 text-sm text-gray-500">${item.department}</td>
+        <td class="p-3">${item.equipmentName}</td>
+        <td class="p-3 text-sm text-gray-600">${item.borrowStaffName}</td> 
+        <td class="p-3 text-sm text-gray-600">${item.returnStaffName}</td> 
+        <td class="p-3">${statusBadge}</td>
+        <td class="p-3 text-sm text-gray-500">${item.returnDate}</td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+}
+
+
+// ฟังก์ชัน Export Excel
+function exportHistoryToExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('ไลบรารี Excel ยังไม่โหลด กรุณารีเฟรชหน้าจอ');
+    return;
+  }
+  if (currentHistoryData.length === 0) {
+    alert("ไม่มีข้อมูลสำหรับ Export");
+    return;
+  }
+  
+  const excelData = currentHistoryData.map(item => ({
+    "วันที่ยืม": item.borrowDate,
+    "ผู้ยืม": item.memberName,
+    "แผนก": item.department,
+    "อุปกรณ์": item.equipmentName,
+    "ผู้ทำรายการยืม": item.borrowStaffName || item.staffName || "",
+    "ผู้ทำรายการคืน": item.returnStaffName || "",
+    "สถานะ": item.status,
+    "วันที่คืน": item.returnDate
+  }));
+
+
+  const ws = XLSX.utils.json_to_sheet(excelData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "History");
+  XLSX.writeFile(wb, "History_Report.xlsx");
+}
+
+// ฟังก์ชันพิมพ์สติ๊กเกอร์อุปกรณ์
+function printEquipmentSticker(barcode) {
+  const item = allEquipmentData.find(x => x.EquipmentBarcode == barcode);
+  if (!item) return;
+
+  // ดึง SVG Barcode ที่สร้างไว้แล้วในตารางมาใช้เลย (จะได้ไม่ต้อง gen ใหม่)
+  const svgElement = document.getElementById(`barcode-eq-${barcode}`);
+  if (!svgElement) {
+    alert("Barcode ยังไม่โหลด กรุณารอสักครู่");
+    return;
+  }
+  const svgHtml = svgElement.outerHTML; // ก๊อปปี้โค้ด SVG
+
+  // เปิดหน้าต่างใหม่สำหรับพิมพ์
+  const printWindow = window.open('', '', 'width=500,height=400');
+  printWindow.document.write(`
+    <html>
+    <head>
+      <title>Print Sticker - ${item.EquipmentName}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+      <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f3f4f6;
+        }
+        .sticker-container {
+            background: white;
+            border: 2px solid #000;
+            width: 350px; /* ปรับขนาดตามสติ๊กเกอร์จริง */
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+        .sub-header { font-size: 14px; color: #555; margin-bottom: 15px; }
+        .barcode-box { margin: 10px 0; }
+        .barcode-box svg { width: 100%; height: auto; max-height: 80px; }
+        .footer { font-size: 12px; margin-top: 10px; color: #888; }
+        
+        /* ซ่อนปุ่มพิมพ์เมื่อสั่งปริ้น */
+        @media print {
+          body { background: white; height: auto; display: block; }
+          .sticker-container { 
+             box-shadow: none; 
+             border: 1px solid #000; /* หรือ none ถ้าสติ๊กเกอร์มีกรอบอยู่แล้ว */
+             width: 100%;
+             margin: 0 auto;
+             page-break-inside: avoid;
+          }
+          #print-btn-wrapper { display: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="sticker-container">
+        <div class="header">${item.EquipmentName}</div>
+        <div class="sub-header">
+           รหัส: ${item.EquipmentBarcode} <br>
+           ${item.AssetNumber ? `(ครุภัณฑ์: ${item.AssetNumber})` : ''}
+        </div>
+        
+        <div class="barcode-box">
+           ${svgHtml}
+        </div>
+
+        <div class="footer">มหาวิทยาลัยขอนแก่น</div>
+
+        <div id="print-btn-wrapper" style="margin-top: 20px;">
+           <button onclick="window.print()" style="padding: 8px 16px; cursor: pointer; background: #f97316; color: white; border: none; border-radius: 4px; font-weight: bold;">
+             🖨️ สั่งพิมพ์
+           </button>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+</script>
